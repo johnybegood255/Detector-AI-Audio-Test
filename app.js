@@ -1,38 +1,8 @@
-let stream,ctx,analyser,src,raf,recorder,chunks=[];
-const $=id=>document.getElementById(id);
-async function list(){
- const ds=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==="audioinput");
- $("devices").innerHTML="";
- ds.forEach((d,i)=>{let o=document.createElement("option");o.value=d.deviceId;o.textContent=d.label||`Entrée audio ${i+1}`;$("devices").appendChild(o)});
- $("diag").textContent=`User agent:\n${navigator.userAgent}\n\nEntrées audio:\n`+ds.map((d,i)=>`${i+1}. ${d.label||"(sans nom)"}\n   id: ${d.deviceId}`).join("\n");
-}
-async function open(deviceId){
- if(stream) stream.getTracks().forEach(t=>t.stop());
- const audio=deviceId?{deviceId:{exact:deviceId},echoCancellation:false,noiseSuppression:false,autoGainControl:false}:{echoCancellation:false,noiseSuppression:false,autoGainControl:false};
- stream=await navigator.mediaDevices.getUserMedia({audio});
- const track=stream.getAudioTracks()[0], s=track.getSettings();
- $("status").innerHTML=`<span class="ok">Actif :</span> ${track.label||"entrée sans nom"}<br>Canaux: ${s.channelCount??"?"} — fréquence: ${s.sampleRate??"?"} Hz`;
- ctx=new (window.AudioContext||window.webkitAudioContext)();
- analyser=ctx.createAnalyser(); analyser.fftSize=2048;
- src=ctx.createMediaStreamSource(stream); src.connect(analyser);
- $("rec").disabled=false; draw();
-}
-$("start").onclick=async()=>{try{await open();await list()}catch(e){$("status").textContent="Erreur : "+e.message}};
-$("use").onclick=async()=>{try{await open($("devices").value)}catch(e){$("status").textContent="Erreur : "+e.message}};
-$("threshold").oninput=e=>$("thr").textContent=e.target.value;
-function draw(){
- cancelAnimationFrame(raf); const a=new Float32Array(analyser.fftSize), c=$("scope"),g=c.getContext("2d");
- const loop=()=>{analyser.getFloatTimeDomainData(a);let sum=0,pk=0;for(let x of a){sum+=x*x;pk=Math.max(pk,Math.abs(x))}
- let rms=Math.sqrt(sum/a.length);$("rms").textContent=rms.toFixed(4);$("peak").textContent=pk.toFixed(4);
- $("bar").style.width=Math.min(100,rms*500)+"%";
- let th=+$("threshold").value;$("detect").textContent=rms>th?"⚡ Signal audio détecté":"Aucun signal détecté.";
- g.clearRect(0,0,c.width,c.height);g.beginPath();for(let i=0;i<a.length;i++){let x=i/(a.length-1)*c.width,y=(.5-a[i]*.45)*c.height;i?g.lineTo(x,y):g.moveTo(x,y)}g.strokeStyle="#eee";g.stroke();
- raf=requestAnimationFrame(loop)};loop()
-}
-$("rec").onclick=()=>{
- chunks=[];let mime=MediaRecorder.isTypeSupported("audio/mp4")?"audio/mp4":"audio/webm";
- recorder=new MediaRecorder(stream,{mimeType:mime});recorder.ondataavailable=e=>chunks.push(e.data);
- recorder.onstop=()=>{$("play").src=URL.createObjectURL(new Blob(chunks,{type:mime}));$("rec").textContent="Enregistrer 10 s"};
- recorder.start();$("rec").textContent="Enregistrement…";setTimeout(()=>recorder.stop(),10000)
-};
-if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
+let stream,ctx,source,splitter,a1,a2,raf,recorder,chunks=[],timer;const $=x=>document.getElementById(x);
+async function list(){let ds=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==="audioinput");$("devices").innerHTML="";ds.forEach((d,i)=>{let o=document.createElement("option");o.value=d.deviceId;o.textContent=d.label||`Entrée ${i+1}`;$("devices").appendChild(o)});return ds}
+function stat(a,n){let d=new Float32Array(a.fftSize);a.getFloatTimeDomainData(d);let s=0,p=0;for(let x of d){s+=x*x;p=Math.max(p,Math.abs(x))}let r=Math.sqrt(s/d.length);$(`rms${n}`).textContent=r.toFixed(4);$(`peak${n}`).textContent=p.toFixed(4);$(`bar${n}`).style.width=Math.min(100,r*500)+"%";let c=$(`scope${n}`),g=c.getContext("2d");g.clearRect(0,0,c.width,c.height);g.beginPath();d.forEach((v,i)=>{let x=i/(d.length-1)*c.width,y=(.5-v*.45)*c.height;i?g.lineTo(x,y):g.moveTo(x,y)});g.strokeStyle="#eee";g.stroke();return r}
+function draw(){cancelAnimationFrame(raf);let f=()=>{let x=stat(a1,1),y=stat(a2,2);$("interpret").textContent=x>.015&&y<.008?"Activité surtout CANAL 1":y>.015&&x<.008?"Activité surtout CANAL 2":x>.015&&y>.015?"Activité sur LES DEUX CANAUX":"En attente de signal…";raf=requestAnimationFrame(f)};f()}
+async function open(id){if(stream)stream.getTracks().forEach(t=>t.stop());if(ctx)await ctx.close();let audio={echoCancellation:false,noiseSuppression:false,autoGainControl:false,channelCount:{ideal:2},sampleRate:{ideal:48000}};if(id)audio.deviceId={exact:id};stream=await navigator.mediaDevices.getUserMedia({audio});ctx=new(window.AudioContext||window.webkitAudioContext)({sampleRate:48000});await ctx.resume();source=ctx.createMediaStreamSource(stream);splitter=ctx.createChannelSplitter(2);a1=ctx.createAnalyser();a2=ctx.createAnalyser();a1.fftSize=a2.fftSize=2048;source.connect(splitter);splitter.connect(a1,0);splitter.connect(a2,1);let t=stream.getAudioTracks()[0],s=t.getSettings(),cap=t.getCapabilities?t.getCapabilities():{};$("status").innerHTML=`<span class="ok">Actif :</span> ${t.label}<br>AudioContext ${ctx.sampleRate} Hz — Web Audio canaux: ${source.channelCount}`;let ds=await list();$("diag").textContent=`User agent:\n${navigator.userAgent}\n\nTrack: ${t.label}\n\nSettings:\n${JSON.stringify(s,null,2)}\n\nCapabilities:\n${JSON.stringify(cap,null,2)}\n\nWeb Audio:\nsampleRate=${ctx.sampleRate}\nsource.channelCount=${source.channelCount}\nmode=${source.channelCountMode}\ninterpretation=${source.channelInterpretation}\n\nEntrées:\n`+ds.map((d,i)=>`${i+1}. ${d.label}`).join("\n");$("rec").disabled=false;draw()}
+$("start").onclick=()=>open().catch(e=>$("status").textContent=`Erreur ${e.name}: ${e.message}`);$("use").onclick=()=>open($("devices").value).catch(e=>$("status").textContent=`Erreur ${e.name}: ${e.message}`);
+$("rec").onclick=()=>{try{chunks=[];let candidates=["audio/mp4;codecs=mp4a.40.2","audio/mp4","audio/webm;codecs=opus","audio/webm"],mime=candidates.find(x=>MediaRecorder.isTypeSupported(x)),opts=mime?{mimeType:mime}:{};recorder=new MediaRecorder(stream,opts);recorder.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data)};recorder.onerror=e=>$("recstatus").textContent="Erreur MediaRecorder: "+(e.error?.message||e.error?.name||"inconnue");recorder.onstop=()=>{clearTimeout(timer);let type=recorder.mimeType||chunks[0]?.type||"audio/mp4",b=new Blob(chunks,{type});$("play").src=URL.createObjectURL(b);$("recstatus").textContent=`OK — ${Math.round(b.size/1024)} Ko — ${type}`;$("rec").disabled=false;$("stop").disabled=true};recorder.start(250);$("recstatus").textContent="Enregistrement…";$("rec").disabled=true;$("stop").disabled=false;timer=setTimeout(()=>recorder.state!=="inactive"&&recorder.stop(),10000)}catch(e){$("recstatus").textContent=`Erreur ${e.name}: ${e.message}`}};
+$("stop").onclick=()=>recorder&&recorder.state!=="inactive"&&recorder.stop();
