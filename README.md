@@ -1,3 +1,10 @@
-# Detector AI Audio Test V2
+# Detector AI Audio Test V3
 
-V2 : séparation des canaux 1/2, diagnostic Web Audio et enregistrement Safari/iOS amélioré.
+Ajouts :
+- identification assistée du canal DEUS et du canal micro par tests de 3 s ;
+- enregistrement stéréo 10 s ;
+- partage de l'enregistrement original ;
+- téléchargement de l'original ;
+- extraction locale en deux fichiers WAV mono (canal 1 et canal 2) pour analyse séparée.
+
+Prototype indépendant de Detector AI.

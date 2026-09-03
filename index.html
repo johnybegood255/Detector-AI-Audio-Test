@@ -1,1 +1,85 @@
-<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Detector AI Audio Test V2</title><style>body{font-family:system-ui;background:#111;color:#eee;margin:0}main{max-width:900px;margin:auto;padding:18px}.card{background:#1d1d1f;padding:16px;border-radius:14px;margin:12px 0}button,select{font:inherit;padding:12px;margin:5px;border-radius:10px}.meter{height:18px;background:#333;border-radius:9px;overflow:hidden}.bar{height:100%;width:0;background:#eee}canvas{width:100%;height:130px;background:#080808}.grid{display:grid;gap:12px}@media(min-width:700px){.grid{grid-template-columns:1fr 1fr}}pre{white-space:pre-wrap;word-break:break-word}.ok{color:#6ee7a2}</style></head><body><main><h1>Detector AI — Audio Test V2</h1><div class="card"><button id="start">1. Autoriser le micro</button><br><select id="devices"></select><button id="use">2. Utiliser cette entrée</button><p id="status">En attente.</p></div><div class="grid"><div class="card"><h2>Canal 1</h2><div class="meter"><div class="bar" id="bar1"></div></div><p>RMS <span id="rms1">0</span> — Pic <span id="peak1">0</span></p><canvas id="scope1" width="800" height="130"></canvas></div><div class="card"><h2>Canal 2</h2><div class="meter"><div class="bar" id="bar2"></div></div><p>RMS <span id="rms2">0</span> — Pic <span id="peak2">0</span></p><canvas id="scope2" width="800" height="130"></canvas></div></div><div class="card"><h2>Test</h2><p id="interpret">Fais sonner uniquement le DEUS, puis parle uniquement dans le micro-cravate.</p><button id="rec" disabled>Enregistrer 10 s</button><button id="stop" disabled>Arrêter</button><p id="recstatus"></p><audio id="play" controls></audio></div><div class="card"><h2>Diagnostic</h2><pre id="diag"></pre></div><script src="app.js?v=2"></script></main></body></html>
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111111">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Detector AI — Audio Test V3</title>
+<style>
+:root{color-scheme:dark}
+body{font-family:system-ui,-apple-system,sans-serif;margin:0;background:#111;color:#eee}
+main{max-width:920px;margin:auto;padding:18px}
+.card{background:#1d1d1f;padding:16px;border-radius:14px;margin:12px 0}
+button,select{font:inherit;padding:12px;border-radius:10px;margin:5px 4px 5px 0;max-width:100%}
+button{font-weight:700}
+button:disabled{opacity:.45}
+.ok{color:#6ee7a2}.warn{color:#ffd166}
+.meter{height:18px;background:#333;border-radius:9px;overflow:hidden;margin:8px 0}
+.bar{height:100%;width:0;background:#eee}
+canvas{width:100%;height:135px;background:#080808;border-radius:10px}
+.grid{display:grid;gap:12px}
+@media(min-width:700px){.grid{grid-template-columns:1fr 1fr}}
+pre{white-space:pre-wrap;word-break:break-word;font-size:.86rem}
+a.download{display:inline-block;padding:10px 12px;background:#2c2c2e;color:#fff;border-radius:9px;text-decoration:none;margin:5px 5px 5px 0}
+.badge{display:inline-block;padding:4px 8px;border-radius:8px;background:#2c2c2e;margin-left:6px}
+small{color:#aaa}
+</style>
+</head>
+<body><main>
+<h1>Detector AI — Audio Test V3</h1>
+<p>Prototype séparé de Detector AI. Analyse locale du RØDE AI-Micro, sans envoi automatique sur Internet.</p>
+
+<div class="card">
+<button id="start">1. Autoriser le micro</button><br>
+<select id="devices"></select>
+<button id="use">2. Utiliser cette entrée</button>
+<p id="status">En attente.</p>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <h2>Canal 1 <span id="label1" class="badge">non identifié</span></h2>
+    <div class="meter"><div class="bar" id="bar1"></div></div>
+    <p>RMS <span id="rms1">0</span> — Pic <span id="peak1">0</span></p>
+    <canvas id="scope1" width="800" height="135"></canvas>
+  </div>
+  <div class="card">
+    <h2>Canal 2 <span id="label2" class="badge">non identifié</span></h2>
+    <div class="meter"><div class="bar" id="bar2"></div></div>
+    <p>RMS <span id="rms2">0</span> — Pic <span id="peak2">0</span></p>
+    <canvas id="scope2" width="800" height="135"></canvas>
+  </div>
+</div>
+
+<div class="card">
+<h2>Identification des canaux</h2>
+<p>Pour chaque test, produis uniquement le son demandé pendant 3 secondes.</p>
+<button id="testDeus" disabled>Tester DEUS 3 s</button>
+<button id="testMic" disabled>Tester micro 3 s</button>
+<p id="testResult">Aucun test effectué.</p>
+</div>
+
+<div class="card">
+<h2>Enregistrement</h2>
+<button id="rec" disabled>Enregistrer 10 s</button>
+<button id="stop" disabled>Arrêter</button>
+<p id="recstatus"></p>
+<audio id="play" controls></audio>
+<div id="exports" style="display:none">
+  <p><b>Exporter / partager :</b></p>
+  <button id="shareOriginal">Partager l’original</button>
+  <a id="downloadOriginal" class="download" download="detector-ai-test.m4a">Télécharger l’original</a>
+  <a id="downloadCh1" class="download" download="detector-ai-canal1.wav">Canal 1 WAV</a>
+  <a id="downloadCh2" class="download" download="detector-ai-canal2.wav">Canal 2 WAV</a>
+  <p><small>Les WAV mono permettent d’analyser séparément le DEUS et le micro-cravate.</small></p>
+</div>
+</div>
+
+<div class="card">
+<h2>Diagnostic</h2>
+<pre id="diag"></pre>
+</div>
+
+<script src="app.js?v=3"></script>
+</main></body></html>
